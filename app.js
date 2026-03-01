@@ -11,17 +11,17 @@
 
   // ── State ────────────────────────────────────────────────────────────────
   let currentYear;
-  let currentMonth;   // 0-indexed (0 = January)
+  let currentMonth;   // 0-indexed
   let events = [];
   let editingId = null;
   let previouslyFocused = null;
 
-  // ── DOM helpers ──────────────────────────────────────────────────────────
+  // ── DOM helper ───────────────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
 
-  // ── Initialisation ───────────────────────────────────────────────────────
+  // ── Init ─────────────────────────────────────────────────────────────────
   function init() {
-    const today = new Date();
+    const today  = new Date();
     currentYear  = today.getFullYear();
     currentMonth = today.getMonth();
 
@@ -33,18 +33,19 @@
   function bindListeners() {
     $('btn-prev').addEventListener('click', navigatePrev);
     $('btn-next').addEventListener('click', navigateNext);
+    $('btn-today').addEventListener('click', goToToday);
+    $('mini-prev').addEventListener('click', navigatePrev);
+    $('mini-next').addEventListener('click', navigateNext);
     $('btn-add-event').addEventListener('click', () => openModalForAdd());
     $('btn-modal-close').addEventListener('click', closeModal);
     $('btn-cancel').addEventListener('click', closeModal);
     $('btn-delete').addEventListener('click', handleDelete);
     $('event-form').addEventListener('submit', handleFormSubmit);
 
-    // Click outside modal content closes it
     $('modal-overlay').addEventListener('click', function (e) {
       if (e.target === this) closeModal();
     });
 
-    // Grid delegation: chip click → edit; day cell click → add
     $('cal-grid').addEventListener('click', function (e) {
       const chip = e.target.closest('.event-chip');
       if (chip) {
@@ -52,18 +53,14 @@
         openModalForEdit(chip.dataset.id);
         return;
       }
-      const cell = e.target.closest('.day-cell:not(.filler)');
-      if (cell) {
+      const cell = e.target.closest('.day-cell');
+      if (cell && cell.dataset.date) {
         openModalForAdd(cell.dataset.date);
       }
     });
 
-    // Keyboard shortcuts
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && modalIsOpen()) {
-        closeModal();
-        return;
-      }
+      if (e.key === 'Escape' && modalIsOpen()) { closeModal(); return; }
       if (!modalIsOpen()) {
         if (e.key === 'ArrowLeft')  navigatePrev();
         if (e.key === 'ArrowRight') navigateNext();
@@ -74,66 +71,100 @@
   // ── Navigation ───────────────────────────────────────────────────────────
   function navigatePrev() {
     currentMonth -= 1;
-    if (currentMonth < 0) {
-      currentMonth = 11;
-      currentYear -= 1;
-    }
+    if (currentMonth < 0) { currentMonth = 11; currentYear -= 1; }
     renderCalendar();
   }
 
   function navigateNext() {
     currentMonth += 1;
-    if (currentMonth > 11) {
-      currentMonth = 0;
-      currentYear += 1;
-    }
+    if (currentMonth > 11) { currentMonth = 0; currentYear += 1; }
+    renderCalendar();
+  }
+
+  function goToToday() {
+    const today  = new Date();
+    currentYear  = today.getFullYear();
+    currentMonth = today.getMonth();
     renderCalendar();
   }
 
   // ── Calendar render ──────────────────────────────────────────────────────
   function renderCalendar() {
     $('month-label').textContent = MONTH_NAMES[currentMonth] + ' ' + currentYear;
-    const grid = $('cal-grid');
-    grid.textContent = ''; // clear safely — no user data here
-    grid.appendChild(buildGridCells(currentYear, currentMonth));
+    renderMainGrid();
+    renderMiniCal();
   }
 
-  function buildGridCells(year, month) {
-    const fragment    = document.createDocumentFragment();
-    const firstDay    = new Date(year, month, 1).getDay();          // 0–6
-    const daysInMonth = new Date(year, month + 1, 0).getDate();     // 28–31
-    const today       = new Date();
-    const todayStr    = formatDate(today.getFullYear(), today.getMonth() + 1, today.getDate());
+  // ── Main grid ────────────────────────────────────────────────────────────
+  function renderMainGrid() {
+    const grid = $('cal-grid');
+    const firstDay    = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const totalCells  = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+    const rowCount    = totalCells / 7;
 
-    // Total cells: round up to the next multiple of 7
-    const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+    // Set row class so CSS grid fills the viewport evenly
+    grid.className = 'rows-' + rowCount;
+
+    const today    = new Date();
+    const todayStr = formatDate(today.getFullYear(), today.getMonth() + 1, today.getDate());
+
+    grid.textContent = '';
+    grid.appendChild(buildGridCells(currentYear, currentMonth, firstDay, daysInMonth, totalCells, todayStr));
+  }
+
+  function buildGridCells(year, month, firstDay, daysInMonth, totalCells, todayStr) {
+    const fragment   = document.createDocumentFragment();
+    const prevMonthDays = new Date(year, month, 0).getDate(); // days in prev month
 
     for (let i = 0; i < totalCells; i++) {
       const dayNumber = i - firstDay + 1;
       const cell = document.createElement('div');
       cell.setAttribute('role', 'gridcell');
 
-      if (dayNumber < 1 || dayNumber > daysInMonth) {
+      const numSpan = document.createElement('span');
+      numSpan.className = 'day-number';
+
+      if (dayNumber < 1) {
+        // Days from previous month
+        const prevDay = prevMonthDays + dayNumber;
+        const prevMonth = month === 0 ? 12 : month;
+        const prevYear  = month === 0 ? year - 1 : year;
+        const dateStr   = formatDate(prevYear, prevMonth, prevDay);
+
         cell.className = 'day-cell filler';
+        cell.dataset.date = dateStr;
+        numSpan.textContent = String(prevDay);
+
+      } else if (dayNumber > daysInMonth) {
+        // Days from next month
+        const nextDay   = dayNumber - daysInMonth;
+        const nextMonth = month === 11 ? 1 : month + 2;
+        const nextYear  = month === 11 ? year + 1 : year;
+        const dateStr   = formatDate(nextYear, nextMonth, nextDay);
+
+        cell.className = 'day-cell filler';
+        cell.dataset.date = dateStr;
+        numSpan.textContent = String(nextDay);
+
       } else {
+        // Current month day
         const dateStr = formatDate(year, month + 1, dayNumber);
         cell.className = 'day-cell' + (dateStr === todayStr ? ' today' : '');
         cell.dataset.date = dateStr;
-
-        const numSpan = document.createElement('span');
-        numSpan.className = 'day-number';
         numSpan.textContent = String(dayNumber);
-        cell.appendChild(numSpan);
 
-        // Append event chips
         getEventsForDate(dateStr).forEach(function (evt) {
           cell.appendChild(renderEventChip(evt));
         });
       }
 
+      cell.appendChild(numSpan);  // number always last so chips appear above it
+      // Re-order: number first, then chips
+      cell.insertBefore(numSpan, cell.firstChild);
+
       fragment.appendChild(cell);
     }
-
     return fragment;
   }
 
@@ -147,10 +178,49 @@
     const btn = document.createElement('button');
     btn.className = 'event-chip';
     btn.type = 'button';
-    btn.textContent = evt.title;                              // XSS-safe
+    btn.textContent = evt.title;
     btn.dataset.id = evt.id;
     btn.setAttribute('aria-label', 'Edit: ' + evt.title + ' at ' + evt.startTime);
     return btn;
+  }
+
+  // ── Mini calendar ────────────────────────────────────────────────────────
+  function renderMiniCal() {
+    $('mini-month-label').textContent = MONTH_NAMES[currentMonth] + ' ' + currentYear;
+
+    const firstDay    = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const totalCells  = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+
+    const today    = new Date();
+    const todayStr = formatDate(today.getFullYear(), today.getMonth() + 1, today.getDate());
+
+    const grid = $('mini-cal-grid');
+    grid.textContent = '';
+
+    for (let i = 0; i < totalCells; i++) {
+      const dayNumber = i - firstDay + 1;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+
+      if (dayNumber < 1 || dayNumber > daysInMonth) {
+        btn.className = 'mini-day mini-filler';
+        btn.textContent = '';
+        btn.setAttribute('aria-hidden', 'true');
+        btn.tabIndex = -1;
+      } else {
+        const dateStr = formatDate(currentYear, currentMonth + 1, dayNumber);
+        btn.className = 'mini-day' + (dateStr === todayStr ? ' mini-today' : '');
+        btn.textContent = String(dayNumber);
+        btn.dataset.date = dateStr;
+        btn.setAttribute('aria-label', dateStr);
+        btn.addEventListener('click', function () {
+          openModalForAdd(this.dataset.date);
+        });
+      }
+
+      grid.appendChild(btn);
+    }
   }
 
   // ── Date helper ──────────────────────────────────────────────────────────
@@ -174,9 +244,7 @@
   }
 
   function generateId() {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID();
-    }
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
     return Date.now().toString(36) + Math.random().toString(36).slice(2);
   }
 
@@ -192,8 +260,7 @@
   }
 
   function createEvent(data) {
-    const evt = Object.assign({ id: generateId() }, data);
-    events.push(evt);
+    events.push(Object.assign({ id: generateId() }, data));
     saveEvents();
     renderCalendar();
   }
@@ -212,7 +279,7 @@
     renderCalendar();
   }
 
-  // ── Modal control ────────────────────────────────────────────────────────
+  // ── Modal ────────────────────────────────────────────────────────────────
   function modalIsOpen() {
     return !$('modal-overlay').classList.contains('hidden');
   }
@@ -220,7 +287,6 @@
   function showModal() {
     $('modal-overlay').classList.remove('hidden');
     $('modal-overlay').setAttribute('aria-hidden', 'false');
-    // Small delay ensures element is visible before focusing
     setTimeout(function () { $('f-title').focus(); }, 50);
   }
 
@@ -229,10 +295,7 @@
     $('modal-overlay').setAttribute('aria-hidden', 'true');
     editingId = null;
     clearAllErrors();
-    if (previouslyFocused) {
-      previouslyFocused.focus();
-      previouslyFocused = null;
-    }
+    if (previouslyFocused) { previouslyFocused.focus(); previouslyFocused = null; }
   }
 
   function openModalForAdd(dateStr) {
@@ -248,17 +311,14 @@
   function openModalForEdit(id) {
     const evt = events.find(function (e) { return e.id === id; });
     if (!evt) return;
-
     previouslyFocused = document.activeElement;
     editingId = id;
     $('modal-title').textContent = 'Edit Event';
-
     $('f-title').value = evt.title;
     $('f-date').value  = evt.date;
     $('f-start').value = evt.startTime;
     $('f-end').value   = evt.endTime;
     $('f-desc').value  = evt.description;
-
     $('btn-delete').classList.remove('hidden');
     showModal();
   }
@@ -268,20 +328,13 @@
     e.preventDefault();
     if (!validateForm()) return;
     const data = readFormData();
-    if (editingId) {
-      updateEvent(editingId, data);
-    } else {
-      createEvent(data);
-    }
+    if (editingId) { updateEvent(editingId, data); } else { createEvent(data); }
     closeModal();
   }
 
   function handleDelete() {
     if (!editingId) return;
-    if (window.confirm('Delete this event?')) {
-      deleteEvent(editingId);
-      closeModal();
-    }
+    if (window.confirm('Delete this event?')) { deleteEvent(editingId); closeModal(); }
   }
 
   function readFormData() {
@@ -305,72 +358,52 @@
 
   function validateTitle() {
     const val = $('f-title').value.trim();
-    if (!val) {
-      setError('err-title', 'f-title', 'Title is required');
-      return false;
-    }
+    if (!val) { setError('err-title', 'f-title', 'Title is required'); return false; }
     clearError('err-title', 'f-title');
     return true;
   }
 
   function validateDate() {
     const val = $('f-date').value;
-    if (!val) {
-      setError('err-date', 'f-date', 'Date is required');
-      return false;
-    }
+    if (!val) { setError('err-date', 'f-date', 'Date is required'); return false; }
     const d = new Date(val + 'T00:00:00');
-    if (isNaN(d.getTime())) {
-      setError('err-date', 'f-date', 'Enter a valid date');
-      return false;
-    }
+    if (isNaN(d.getTime())) { setError('err-date', 'f-date', 'Enter a valid date'); return false; }
     clearError('err-date', 'f-date');
     return true;
   }
 
   function validateStartTime() {
     const val = $('f-start').value;
-    if (!val) {
-      setError('err-start', 'f-start', 'Start time is required');
-      return false;
-    }
+    if (!val) { setError('err-start', 'f-start', 'Start time is required'); return false; }
     clearError('err-start', 'f-start');
     return true;
   }
 
   function validateEndTime() {
-    const endVal   = $('f-end').value;
+    const endVal = $('f-end').value;
     const startVal = $('f-start').value;
-    if (!endVal) {
-      setError('err-end', 'f-end', 'End time is required');
-      return false;
-    }
-    if (startVal && endVal <= startVal) {
-      setError('err-end', 'f-end', 'End time must be after start time');
-      return false;
-    }
+    if (!endVal) { setError('err-end', 'f-end', 'End time is required'); return false; }
+    if (startVal && endVal <= startVal) { setError('err-end', 'f-end', 'End time must be after start time'); return false; }
     clearError('err-end', 'f-end');
     return true;
   }
 
   function setError(errId, inputId, message) {
-    const errEl   = $(errId);
-    const inputEl = $(inputId);
-    if (errEl)   errEl.textContent = message;
-    if (inputEl) inputEl.classList.add('invalid');
+    const e = $(errId), i = $(inputId);
+    if (e) e.textContent = message;
+    if (i) i.classList.add('invalid');
   }
 
   function clearError(errId, inputId) {
-    const errEl   = $(errId);
-    const inputEl = $(inputId);
-    if (errEl)   errEl.textContent = '';
-    if (inputEl) inputEl.classList.remove('invalid');
+    const e = $(errId), i = $(inputId);
+    if (e) e.textContent = '';
+    if (i) i.classList.remove('invalid');
   }
 
   function clearAllErrors() {
-    [['err-title', 'f-title'], ['err-date', 'f-date'],
-     ['err-start', 'f-start'], ['err-end', 'f-end']].forEach(function (pair) {
-      clearError(pair[0], pair[1]);
+    [['err-title','f-title'],['err-date','f-date'],
+     ['err-start','f-start'],['err-end','f-end']].forEach(function (p) {
+      clearError(p[0], p[1]);
     });
   }
 
