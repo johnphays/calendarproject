@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <title>Calendar</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="app">
+
+    <header id="cal-header">
+      <button id="btn-prev" aria-label="Previous month">&#8249;</button>
+      <h1 id="month-label">Loading…</h1>
+      <button id="btn-next" aria-label="Next month">&#8250;</button>
+      <button id="btn-add-event">+ Add Event</button>
+    </header>
+
+    <div id="dow-header" role="row" aria-hidden="true">
+      <span>Sun</span>
+      <span>Mon</span>
+      <span>Tue</span>
+      <span>Wed</span>
+      <span>Thu</span>
+      <span>Fri</span>
+      <span>Sat</span>
+    </div>
+
+    <main id="cal-grid" role="grid" aria-label="Calendar"></main>
+
+  </div>
+
+  <!-- Modal overlay -->
+  <div id="modal-overlay" class="hidden" role="dialog"
+       aria-modal="true" aria-labelledby="modal-title">
+    <div id="modal">
+      <header id="modal-header">
+        <h2 id="modal-title">Add Event</h2>
+        <button id="btn-modal-close" aria-label="Close modal">&times;</button>
+      </header>
+
+      <form id="event-form" novalidate>
+
+        <div class="form-group">
+          <label for="f-title">Title <span aria-hidden="true">*</span></label>
+          <input id="f-title" type="text" name="title"
+                 placeholder="Event title" maxlength="80" required>
+          <span class="error-msg" id="err-title"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="f-date">Date <span aria-hidden="true">*</span></label>
+          <input id="f-date" type="date" name="date" required>
+          <span class="error-msg" id="err-date"></span>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="f-start">Start Time <span aria-hidden="true">*</span></label>
+            <input id="f-start" type="time" name="startTime" required>
+            <span class="error-msg" id="err-start"></span>
+          </div>
+          <div class="form-group">
+            <label for="f-end">End Time <span aria-hidden="true">*</span></label>
+            <input id="f-end" type="time" name="endTime" required>
+            <span class="error-msg" id="err-end"></span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="f-desc">Description</label>
+          <textarea id="f-desc" name="description"
+                    rows="3" maxlength="500"
+                    placeholder="Optional notes"></textarea>
+        </div>
+
+        <div id="modal-actions">
+          <button type="submit" id="btn-save">Save</button>
+          <button type="button" id="btn-delete" class="hidden danger">Delete</button>
+          <button type="button" id="btn-cancel">Cancel</button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
