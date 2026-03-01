@@ -19,6 +19,27 @@
   // ── DOM helper ───────────────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
 
+  // ── Focus trap (modal) ───────────────────────────────────────────────────
+  const FOCUSABLE_SEL = 'a[href], button:not([disabled]), input, textarea, select, [tabindex]:not([tabindex="-1"])';
+
+  function getTrapFocusable() {
+    return Array.from($('modal').querySelectorAll(FOCUSABLE_SEL))
+      .filter(function (el) { return !el.classList.contains('hidden'); });
+  }
+
+  function trapFocus(e) {
+    if (e.key !== 'Tab') return;
+    const focusable = getTrapFocusable();
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last  = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
+
   // ── Init ─────────────────────────────────────────────────────────────────
   function init() {
     const today  = new Date();
@@ -44,6 +65,12 @@
 
     $('modal-overlay').addEventListener('click', function (e) {
       if (e.target === this) closeModal();
+    });
+
+    $('cal-grid').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const cell = e.target.closest('.day-cell:not(.filler)');
+      if (cell && cell.dataset.date) { e.preventDefault(); openModalForAdd(cell.dataset.date); }
     });
 
     $('cal-grid').addEventListener('click', function (e) {
@@ -134,6 +161,7 @@
 
         cell.className = 'day-cell filler';
         cell.dataset.date = dateStr;
+        cell.tabIndex = -1;
         numSpan.textContent = String(prevDay);
 
       } else if (dayNumber > daysInMonth) {
@@ -145,6 +173,7 @@
 
         cell.className = 'day-cell filler';
         cell.dataset.date = dateStr;
+        cell.tabIndex = -1;
         numSpan.textContent = String(nextDay);
 
       } else {
@@ -152,6 +181,8 @@
         const dateStr = formatDate(year, month + 1, dayNumber);
         cell.className = 'day-cell' + (dateStr === todayStr ? ' today' : '');
         cell.dataset.date = dateStr;
+        cell.tabIndex = 0;
+        cell.setAttribute('aria-label', dateStr);
         numSpan.textContent = String(dayNumber);
 
         getEventsForDate(dateStr).forEach(function (evt) {
@@ -287,12 +318,14 @@
   function showModal() {
     $('modal-overlay').classList.remove('hidden');
     $('modal-overlay').setAttribute('aria-hidden', 'false');
+    $('modal-overlay').addEventListener('keydown', trapFocus);
     setTimeout(function () { $('f-title').focus(); }, 50);
   }
 
   function closeModal() {
     $('modal-overlay').classList.add('hidden');
     $('modal-overlay').setAttribute('aria-hidden', 'true');
+    $('modal-overlay').removeEventListener('keydown', trapFocus);
     editingId = null;
     clearAllErrors();
     if (previouslyFocused) { previouslyFocused.focus(); previouslyFocused = null; }

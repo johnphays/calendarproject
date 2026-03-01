@@ -6,7 +6,7 @@
   --color-primary-h: #1557b0;
   --color-danger:    #d93025;
   --color-text:      #202124;
-  --color-muted:     #70757a;
+  --color-muted:     #5f6368;
   --color-border:    #dadce0;
   --color-hover:     #f1f3f4;
   --radius:          6px;
@@ -367,7 +367,7 @@ button {
 }
 
 .filler .day-number {
-  color: #bdc1c6;
+  color: #80868b;
 }
 
 /* ── Event chip ── */
@@ -526,6 +526,25 @@ button {
 
 /* ── Utility ── */
 .hidden { display: none !important; }
+
+/* ── Focus-visible rings (keyboard navigation) ── */
+button:focus-visible,
+.mini-day:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.day-cell:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+  position: relative;
+  z-index: 1;
+}
+
+.event-chip:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
 
 /* ══════════════════════════════════════════
    RESPONSIVE

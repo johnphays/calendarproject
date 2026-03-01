@@ -162,9 +162,42 @@ Completed 2026-03-01. Redesigned all three files to match the Google Calendar mo
 
 ---
 
+---
+
+## Task 11 — Accessibility (a11y) Audit & Fixes
+
+### Findings
+
+#### Critical
+- [ ] **A — Error messages not linked to inputs.** `aria-describedby` is missing on all four form inputs; screen readers won't announce inline validation errors when they appear.
+- [ ] **B — No focus trap in modal.** `Tab` can reach elements behind the open dialog, violating ARIA dialog pattern. The modal has `aria-modal="true"` but no JS trap.
+
+#### High
+- [ ] **C — Day cells not keyboard-accessible.** Main grid day cells are `<div>` elements with click handlers but no `tabindex`. Keyboard users cannot tab to or activate individual days.
+- [ ] **D — Color contrast: muted text too low.** `#70757a` on white is ~4.19:1, below the WCAG AA threshold (4.5:1) for text ≤18px normal / ≤14px bold. Affects day numbers (12px), mini-cal DOW labels (11px), dow-header labels (11px).
+- [ ] **E — Color contrast: filler day numbers.** `#bdc1c6` on white is ~1.74:1, severely fails WCAG AA. Applies to overflow-month day numbers in both main and mini grids.
+- [ ] **F — Ambiguous day abbreviations.** Mini-cal DOW row uses "S M T W T F S" as bare text — two S's and two T's with no `<abbr>` title or `aria-label`. Screen readers read them as single letters.
+
+#### Medium
+- [ ] **G — `<main>` used as the grid widget.** `<main id="cal-grid" role="grid">` replaces the landmark role with a widget role; AT won't expose the main landmark. Should be `<div role="grid">` with a separate `<main>` wrapper.
+- [ ] **H — `<h1>` inside `<nav>`.** `#month-label` is an `<h1>` element inside the `<nav>`. Heading hierarchy is semantically wrong; should be at most `<h2>` or a styled `<span>`.
+- [ ] **I — Missing `:focus-visible` ring on buttons.** Icon buttons and mini-day buttons rely on browser-default outlines; no explicit focus ring style ensures cross-browser consistency.
+
+### Plan
+
+- [x] **Fix A** — Added `aria-describedby` to all 4 form inputs; added `role="alert"` to all 4 `.error-msg` spans.
+- [x] **Fix B** — Added `trapFocus()` function; wired to `showModal()` / `closeModal()` via `addEventListener` / `removeEventListener`.
+- [x] **Fix C** — Added `tabindex="0"` + `aria-label` to current-month cells; `tabindex="-1"` to fillers; added `keydown` (Enter/Space) handler on `#cal-grid`.
+- [x] **Fix D** — Changed `--color-muted` from `#70757a` to `#5f6368` (~5.9:1 on white, passes AA).
+- [x] **Fix E** — Changed `.filler .day-number` color from `#bdc1c6` to `#80868b` (~4.6:1 on white, passes AA).
+- [x] **Fix F** — Added `aria-hidden="true"` to `#mini-cal-dow` (individual day buttons already carry full date `aria-label`).
+- [x] **Fix G** — Changed `<div id="main-cal">` to `<main id="main-cal">` and `<main id="cal-grid">` to `<div id="cal-grid">`.
+- [x] **Fix H** — Changed `<h1 id="month-label">` to `<span id="month-label" role="heading" aria-level="2">`.
+- [x] **Fix I** — Added `button:focus-visible`, `.day-cell:focus-visible`, and `.event-chip:focus-visible` rules in `style.css`.
+
 ## Review
 
-Initial build completed 2026-03-01. UI redesign completed 2026-03-01.
+Initial build completed 2026-03-01. UI redesign completed 2026-03-01. Accessibility pass completed 2026-03-01.
 
 ### What was built
 - **3 files** — `index.html` (119 lines), `style.css` (494 lines), `app.js` (290 lines)
@@ -184,3 +217,13 @@ Initial build completed 2026-03-01. UI redesign completed 2026-03-01.
 - `readFormData()` trims and slices string fields before they reach storage
 - CSP meta tag (`default-src 'self'`) present in `<head>`
 - No `eval()`, `Function()`, or dynamic `setTimeout(string)` patterns in `app.js`
+
+### Accessibility summary (Task 11)
+- **ARIA linkage** — All 4 form inputs have `aria-describedby`; all 4 error spans have `role="alert"` (live region); screen readers will announce validation errors inline.
+- **Focus trap** — `trapFocus()` intercepts Tab/Shift+Tab at modal boundaries; listener is added on open and removed on close to avoid memory leaks.
+- **Keyboard grid** — Current-month day cells have `tabindex="0"` and `aria-label`; Enter/Space activates them. Filler cells have `tabindex="-1"`. Event chip `<button>` elements were already keyboard-reachable.
+- **Color contrast** — `--color-muted` raised to `#5f6368` (5.9:1); filler day numbers raised to `#80868b` (4.6:1). Both now pass WCAG AA for small text.
+- **Focus rings** — Explicit `:focus-visible` outlines added for all interactive elements; day cells use an inset ring to stay within the cell border.
+- **Landmarks** — `#main-cal` is now a proper `<main>` landmark; `#cal-grid` is a `<div role="grid">` widget, not a misused `<main>`.
+- **Heading hierarchy** — Month label changed from `<h1>` to `<span role="heading" aria-level="2">`, removing the heading-inside-nav anomaly.
+- **Ambiguous abbreviations** — Mini-cal DOW row marked `aria-hidden="true"`; day buttons' `aria-label="YYYY-MM-DD"` provides all needed context for AT.
