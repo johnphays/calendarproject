@@ -136,24 +136,51 @@ Implement month grid rendering logic.
 
 ---
 
+## Task 10 — UI Redesign (Google Calendar style)
+Completed 2026-03-01. Redesigned all three files to match the Google Calendar month-view layout.
+
+- [x] Two-column layout: 256px sidebar + flex-1 main calendar area
+- [x] Full-height app shell (`html/body` at `height:100%; overflow:hidden`)
+- [x] `#top-nav` bar: hamburger, calendar logo, Today button, prev/next arrows, month label, search/settings icons, Create button
+- [x] `goToToday()` function wired to Today button
+- [x] `#sidebar` with mini calendar (`renderMiniCal()`) in sync with main view
+- [x] Mini calendar prev/next buttons share `navigatePrev()` / `navigateNext()`
+- [x] Overflow days from prev/next month visible in `buildGridCells()` with lighter day numbers
+- [x] Filler cells have `data-date` set — clicking opens modal pre-filled with that date
+- [x] `rows-5` / `rows-6` CSS classes on `#cal-grid` so rows stretch to fill viewport
+- [x] Google color palette: `#1a73e8` blue, `#dadce0` borders, `#70757a` muted text
+- [x] Today day number: 26px blue circle (no cell background tint)
+- [x] Sidebar collapses on tablet (`max-width:768px`); mobile layout preserved
+
+**Acceptance criteria:**
+- [x] Two-column layout visible on desktop; sidebar hidden on mobile
+- [x] Today button navigates back to current month
+- [x] Mini calendar renders in sidebar, stays in sync with main grid navigation
+- [x] Overflow days (prev/next month) shown in lighter gray in main grid
+- [x] Grid rows fill full viewport height with no page-level scrollbar
+- [x] All existing CRUD, modal, and validation behaviour unchanged
+
+---
+
 ## Review
 
-All 9 tasks completed on 2026-03-01. Summary of what was built and the security posture:
+Initial build completed 2026-03-01. UI redesign completed 2026-03-01.
 
 ### What was built
-- **3 files** — `index.html` (93 lines), `style.css` (423 lines), `app.js` (381 lines)
-- **Month grid** — 7-column CSS Grid with filler cells for correct day alignment; today highlighted in blue
-- **Navigation** — Prev/Next buttons + arrow keys; correct year wrap-around (Dec→Jan and Jan→Dec)
+- **3 files** — `index.html` (119 lines), `style.css` (494 lines), `app.js` (290 lines)
+- **Month grid** — 7-column CSS Grid; rows auto-size to fill viewport; overflow days from prev/next month shown in gray
+- **Navigation** — Prev/Next buttons, arrow keys, Today button; correct year wrap-around
 - **CRUD** — Create, read, update, delete events; all changes persisted to `localStorage` as JSON
-- **Add-event modal** — Opens empty (via header button) or date-pre-filled (via day cell click); all four close triggers work
-- **Edit/Delete** — Click any event chip to open modal pre-filled; Delete button shows only in edit mode with a confirmation dialog
-- **Validation** — All four fields (title, date, start time, end time) validated on submit; inline error messages; end-time-after-start-time check
-- **Responsive** — Three breakpoints: desktop (full chips), tablet (smaller chips), mobile (dot indicators, bottom-sheet modal)
+- **Add-event modal** — Opens empty or date-pre-filled; all four close triggers work
+- **Edit/Delete** — Click any event chip to open modal pre-filled; Delete button in edit mode only
+- **Validation** — All four fields validated; inline error messages; end-time-after-start check
+- **Responsive** — Sidebar collapses ≤768px; dot indicators + bottom-sheet modal ≤480px
+- **Google Calendar UI** — Two-column layout, top nav bar, mini sidebar calendar, Google blue palette
 
 ### Security summary
 - All user data rendered via `textContent` — no `innerHTML` with user-controlled strings anywhere
 - `loadEvents()` wraps `JSON.parse` in try/catch; validates result is an array
-- `sanitizeEvent()` coerces types, regex-validates date/time format, and caps all string fields at maximum lengths
+- `sanitizeEvent()` coerces types, regex-validates date/time format, caps all string fields
 - `readFormData()` trims and slices string fields before they reach storage
-- CSP meta tag (`default-src 'self'`) present in `<head>` to block inline scripts and external resources
+- CSP meta tag (`default-src 'self'`) present in `<head>`
 - No `eval()`, `Function()`, or dynamic `setTimeout(string)` patterns in `app.js`
