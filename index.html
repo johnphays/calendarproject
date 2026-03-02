@@ -4,20 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' cdn.jsdelivr.net 'wasm-unsafe-eval'; connect-src 'self' cdn.jsdelivr.net; worker-src blob:">
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' cdn.tailwindcss.com">
   <title>Calendar</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style type="text/tailwindcss">
-    /* ── Custom theme tokens ── */
-    @theme {
-      --color-primary:   #1a73e8;
-      --color-primary-h: #1557b0;
-      --color-danger:    #d93025;
-      --color-muted:     #5f6368;
-      --color-border:    #dadce0;
-      --color-hover:     #f1f3f4;
-    }
-
     /* ── Global resets ── */
     body {
       font-family: 'Google Sans', Roboto, system-ui, -apple-system, sans-serif;
