@@ -218,6 +218,16 @@ Initial build completed 2026-03-01. UI redesign completed 2026-03-01. Accessibil
 - CSP meta tag (`default-src 'self'`) present in `<head>`
 - No `eval()`, `Function()`, or dynamic `setTimeout(string)` patterns in `app.js`
 
+---
+
+## Task 12 — Netlify Deployment (GitHub-connected)
+
+- [ ] Add `netlify.toml` with no build command and `publish = "."`
+- [ ] Push `netlify.toml` to GitHub (`main` branch)
+- [ ] Walk through Netlify dashboard: import repo, confirm settings, deploy
+
+---
+
 ### Accessibility summary (Task 11)
 - **ARIA linkage** — All 4 form inputs have `aria-describedby`; all 4 error spans have `role="alert"` (live region); screen readers will announce validation errors inline.
 - **Focus trap** — `trapFocus()` intercepts Tab/Shift+Tab at modal boundaries; listener is added on open and removed on close to avoid memory leaks.
