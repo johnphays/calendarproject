@@ -222,9 +222,50 @@ Initial build completed 2026-03-01. UI redesign completed 2026-03-01. Accessibil
 
 ## Task 12 — Netlify Deployment (GitHub-connected)
 
-- [ ] Add `netlify.toml` with no build command and `publish = "."`
-- [ ] Push `netlify.toml` to GitHub (`main` branch)
-- [ ] Walk through Netlify dashboard: import repo, confirm settings, deploy
+- [x] Add `netlify.toml` with no build command and `publish = "."`
+- [x] Push `netlify.toml` to GitHub (`main` branch)
+- [x] Walk through Netlify dashboard: import repo, confirm settings, deploy
+
+---
+
+## Task 13 — Tailwind CSS v4 Migration
+
+Using Context7 to get the latest Tailwind v4 docs. Strategy: Tailwind CDN (browser build) for zero build-step usage. JS-generated classes styled via `<style type="text/tailwindcss">` using `@apply`; static HTML elements get utility classes directly.
+
+### Steps
+
+- [x] **13a — Update CSP & add Tailwind CDN**
+  - Changed `script-src 'self'` → `script-src 'self' cdn.jsdelivr.net`
+  - Changed `style-src 'self'` → `style-src 'self' 'unsafe-inline'` (Tailwind injects a `<style>` element at runtime)
+  - Added `<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>`
+
+- [x] **13b — Add `<style type="text/tailwindcss">` block**
+  - `@theme` with all custom color tokens
+  - Global button reset + body font-family
+  - `.hidden`, `.rows-5`, `.rows-6`, `#cal-grid`, `#modal-overlay`
+  - `.day-cell`, `.day-number`, `.event-chip`, `.mini-day` with `@apply` + plain CSS
+  - `.form-input`, `.invalid`, `.danger`
+  - Focus-visible rings for buttons, day-cells, event-chips
+  - Responsive overrides at 768px and 480px
+
+- [x] **13c — Add utility classes to static HTML elements**
+  - `<html>` / `<body>`: `h-full overflow-hidden flex flex-col`
+  - All nav elements, logo, month label
+  - Sidebar: `hidden md:block` for responsive collapse
+  - Mini-cal header, DOW grid, grid container
+  - Dow-header spans, main-cal layout
+  - Modal, modal-header, form groups (replaced `.form-group` / `.form-row`)
+  - Responsive hiding on `#btn-today` and icon buttons via `max-[480px]:hidden`
+
+- [x] **13d — Replace style.css**
+  - All 590 lines of custom CSS removed; file now contains only a migration comment
+  - `<link rel="stylesheet" href="style.css">` removed from index.html
+
+- [x] **13e — Security review**
+  - `'unsafe-inline'` added to `style-src` only — required for Tailwind's runtime style injection; acceptable for a static client-side app with no server-rendered HTML
+  - `cdn.jsdelivr.net` scoped only to `script-src`; CDN pinned to `@4` (major version)
+  - No `innerHTML` changes; all user data still rendered via `textContent` in app.js
+  - No new XSS vectors introduced
 
 ---
 

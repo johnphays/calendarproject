@@ -1,150 +1,352 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full overflow-hidden">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self'; script-src 'self'">
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' cdn.jsdelivr.net 'wasm-unsafe-eval'; connect-src 'self' cdn.jsdelivr.net; worker-src blob:">
   <title>Calendar</title>
-  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    /* ── Custom theme tokens ── */
+    @theme {
+      --color-primary:   #1a73e8;
+      --color-primary-h: #1557b0;
+      --color-danger:    #d93025;
+      --color-muted:     #5f6368;
+      --color-border:    #dadce0;
+      --color-hover:     #f1f3f4;
+    }
+
+    /* ── Global resets ── */
+    body {
+      font-family: 'Google Sans', Roboto, system-ui, -apple-system, sans-serif;
+    }
+    button {
+      cursor: pointer;
+      font: inherit;
+      background: none;
+      border: none;
+    }
+
+    /* ── Utility ── */
+    .hidden { display: none !important; }
+
+    /* ── Calendar grid rows (set by JS as className) ── */
+    .rows-5 { grid-template-rows: repeat(5, 1fr); }
+    .rows-6 { grid-template-rows: repeat(6, 1fr); }
+
+    /* ── Cal-grid base layout (JS overwrites className so we use the ID) ── */
+    #cal-grid {
+      @apply grid grid-cols-7 flex-1 overflow-y-auto border-l border-[#dadce0];
+    }
+
+    /* ── Modal overlay (JS toggles .hidden on this element) ── */
+    #modal-overlay {
+      @apply fixed inset-0 bg-black/45 flex items-center justify-center z-[100] p-4;
+    }
+
+    /* ── Day cells (created by JS) ── */
+    .day-cell {
+      @apply border-r border-b border-[#dadce0] p-1 cursor-pointer overflow-hidden;
+      transition: background .1s;
+    }
+    .day-cell:hover                { background: #f1f3f4; }
+    .day-cell.filler               { cursor: default; background: #ffffff; }
+    .day-cell.filler:hover         { background: #ffffff; }
+
+    /* ── Day number circle ── */
+    .day-number {
+      @apply flex items-center justify-center w-[26px] h-[26px] rounded-full
+             text-xs font-medium text-[#5f6368] mx-auto leading-none;
+      margin-top: 2px;
+      margin-bottom: 4px;
+    }
+    .today .day-number             { @apply bg-[#1a73e8] text-white font-bold; }
+    .filler .day-number            { color: #80868b; }
+
+    /* ── Event chips ── */
+    .event-chip {
+      @apply block w-full bg-[#1a73e8] text-white text-xs px-2 rounded
+             border-none text-left whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer;
+      padding-top: 1px;
+      padding-bottom: 1px;
+      margin-bottom: 2px;
+      transition: filter .1s;
+    }
+    .event-chip:hover              { filter: brightness(.92); }
+    .event-chip:focus-visible      { outline: 2px solid #fff; outline-offset: -2px; }
+
+    /* ── Mini calendar days ── */
+    .mini-day {
+      @apply flex items-center justify-center w-7 h-7 rounded-full
+             cursor-pointer border-none text-[#202124];
+      font-size: .6875rem;
+      background: transparent;
+      margin: 1px auto;
+    }
+    .mini-day:hover                { background: #f1f3f4; }
+    .mini-day.mini-filler          { color: #5f6368; opacity: .5; cursor: default; }
+    .mini-day.mini-filler:hover    { background: none; }
+    .mini-day.mini-today           { @apply bg-[#1a73e8] text-white font-bold; }
+    .mini-day.mini-today:hover     { background: #1557b0; }
+
+    /* ── Form inputs (shared by text, date, time, textarea) ── */
+    .form-input {
+      @apply border border-[#dadce0] rounded-md w-full bg-white text-[#202124];
+      padding: 8px 10px;
+      font: inherit;
+      font-size: .9rem;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 3px rgba(26, 115, 232, .2);
+    }
+    .form-input.invalid            { border-color: #d93025; }
+
+    /* ── Danger button (delete) ── */
+    .danger {
+      @apply rounded-md;
+      border: 1px solid #d93025;
+      color: #d93025;
+      padding: 9px 20px;
+    }
+    .danger:hover                  { background: #fef2f2; }
+
+    /* ── Focus-visible rings ── */
+    button:focus-visible {
+      outline: 2px solid #1a73e8;
+      outline-offset: 2px;
+    }
+    .day-cell:focus-visible {
+      outline: 2px solid #1a73e8;
+      outline-offset: -2px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Responsive: tablet (≤ 768px) ── */
+    @media (max-width: 768px) {
+      .day-number  { width: 22px; height: 22px; font-size: .7rem; }
+      .event-chip  { font-size: .65rem; padding: 1px 4px; }
+    }
+
+    /* ── Responsive: mobile (≤ 480px) ── */
+    @media (max-width: 480px) {
+      #dow-header span { font-size: .6rem; padding: 6px 2px 6px 0; }
+
+      /* Events become colored dots */
+      .event-chip {
+        font-size: 0;
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        padding: 0; min-width: 0;
+        margin: 1px auto;
+      }
+
+      /* Modal becomes a bottom sheet */
+      #modal-overlay { padding: 0; align-items: flex-end; }
+      #modal         { border-radius: 6px 6px 0 0; max-height: 95vh; max-width: 100%; }
+    }
+  </style>
 </head>
-<body>
+<body class="h-full overflow-hidden flex flex-col bg-white text-[#202124]">
 
   <!-- ── Top navigation bar ── -->
-  <nav id="top-nav">
-    <div id="nav-left">
-      <button id="btn-menu" aria-label="Main menu">
+  <nav id="top-nav"
+       class="flex items-center h-16 max-[768px]:h-14 px-2 border-b border-[#dadce0] shrink-0 gap-1">
+
+    <div id="nav-left" class="flex items-center gap-1 min-w-[220px]">
+      <button id="btn-menu"
+              class="w-10 h-10 rounded-full flex items-center justify-center text-[#5f6368] shrink-0 hover:bg-[#f1f3f4]"
+              aria-label="Main menu">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
         </svg>
       </button>
-      <div id="logo">
-        <span id="logo-icon" aria-hidden="true">&#128197;</span>
-        <span id="logo-text">Calendar</span>
+      <div id="logo" class="flex items-center gap-1.5 px-1">
+        <span id="logo-icon" class="text-[1.6rem] leading-none" aria-hidden="true">&#128197;</span>
+        <span id="logo-text"
+              class="text-[1.375rem] max-[768px]:text-[1.1rem] font-normal text-[#5f6368] tracking-[-0.5px]">
+          Calendar
+        </span>
       </div>
     </div>
 
-    <div id="nav-center">
-      <button id="btn-today">Today</button>
-      <button id="btn-prev" aria-label="Previous month">
+    <div id="nav-center" class="flex items-center gap-1 flex-1">
+      <button id="btn-today"
+              class="border border-[#dadce0] rounded px-4 h-9 text-sm font-medium text-[#202124] mr-1 hover:bg-[#f1f3f4] max-[480px]:hidden">
+        Today
+      </button>
+      <button id="btn-prev"
+              class="w-9 h-9 rounded-full flex items-center justify-center text-[#5f6368] hover:bg-[#f1f3f4]"
+              aria-label="Previous month">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
         </svg>
       </button>
-      <button id="btn-next" aria-label="Next month">
+      <button id="btn-next"
+              class="w-9 h-9 rounded-full flex items-center justify-center text-[#5f6368] hover:bg-[#f1f3f4]"
+              aria-label="Next month">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
         </svg>
       </button>
-      <span id="month-label" role="heading" aria-level="2">Loading…</span>
+      <span id="month-label"
+            class="text-[1.375rem] max-[768px]:text-[1.1rem] font-normal text-[#202124] ml-2 whitespace-nowrap"
+            role="heading" aria-level="2">Loading…</span>
     </div>
 
-    <div id="nav-right">
-      <button class="nav-icon-btn" aria-label="Search">
+    <div id="nav-right" class="flex items-center gap-1 ml-auto">
+      <button class="w-10 h-10 rounded-full flex items-center justify-center text-[#5f6368] hover:bg-[#f1f3f4] max-[480px]:hidden"
+              aria-label="Search">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20.49 19l-5.73-5.73C15.53 12.2 16 10.91 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.41 0 2.7-.47 3.77-1.24L19 20.49 20.49 19zM5 9.5C5 7.01 7.01 5 9.5 5S14 7.01 14 9.5 11.99 14 9.5 14 5 11.99 5 9.5z"/>
         </svg>
       </button>
-      <button class="nav-icon-btn" aria-label="Settings">
+      <button class="w-10 h-10 rounded-full flex items-center justify-center text-[#5f6368] hover:bg-[#f1f3f4] max-[480px]:hidden"
+              aria-label="Settings">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
         </svg>
       </button>
-      <button id="btn-add-event" aria-label="Add event">+ Create</button>
+      <button id="btn-add-event"
+              class="flex items-center gap-2 rounded-[24px] pl-4 pr-6 h-10 bg-white text-[#202124] text-sm font-medium ml-2 whitespace-nowrap hover:bg-[#f1f3f4]"
+              style="box-shadow:0 1px 3px rgba(60,64,67,.3),0 4px 8px rgba(60,64,67,.15)"
+              aria-label="Add event">+ Create</button>
     </div>
   </nav>
 
   <!-- ── App body: sidebar + main calendar ── -->
-  <div id="app-body">
+  <div id="app-body" class="flex flex-1 overflow-hidden">
 
-    <!-- Sidebar -->
-    <aside id="sidebar">
+    <!-- Sidebar (hidden on tablet/mobile) -->
+    <aside id="sidebar"
+           class="w-64 shrink-0 border-r border-[#dadce0] overflow-y-auto py-2 pb-4 hidden md:block">
       <!-- Mini calendar -->
-      <div id="mini-cal">
-        <div id="mini-cal-header">
-          <button id="mini-prev" aria-label="Previous month">
+      <div id="mini-cal" class="px-3 pt-2 pb-3">
+        <div id="mini-cal-header" class="flex items-center justify-between pt-1 pb-2">
+          <button id="mini-prev"
+                  class="w-7 h-7 rounded-full flex items-center justify-center text-[#5f6368] hover:bg-[#f1f3f4]"
+                  aria-label="Previous month">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
             </svg>
           </button>
-          <span id="mini-month-label"></span>
-          <button id="mini-next" aria-label="Next month">
+          <span id="mini-month-label" class="text-sm font-medium text-[#202124]"></span>
+          <button id="mini-next"
+                  class="w-7 h-7 rounded-full flex items-center justify-center text-[#5f6368] hover:bg-[#f1f3f4]"
+                  aria-label="Next month">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
             </svg>
           </button>
         </div>
-        <div id="mini-cal-dow" aria-hidden="true">
-          <span>S</span><span>M</span><span>T</span>
-          <span>W</span><span>T</span><span>F</span><span>S</span>
+        <div id="mini-cal-dow" class="grid grid-cols-7 mb-1" aria-hidden="true">
+          <span class="text-center text-[.6875rem] font-medium text-[#5f6368] py-[2px]">S</span>
+          <span class="text-center text-[.6875rem] font-medium text-[#5f6368] py-[2px]">M</span>
+          <span class="text-center text-[.6875rem] font-medium text-[#5f6368] py-[2px]">T</span>
+          <span class="text-center text-[.6875rem] font-medium text-[#5f6368] py-[2px]">W</span>
+          <span class="text-center text-[.6875rem] font-medium text-[#5f6368] py-[2px]">T</span>
+          <span class="text-center text-[.6875rem] font-medium text-[#5f6368] py-[2px]">F</span>
+          <span class="text-center text-[.6875rem] font-medium text-[#5f6368] py-[2px]">S</span>
         </div>
-        <div id="mini-cal-grid"></div>
+        <div id="mini-cal-grid" class="grid grid-cols-7"></div>
       </div>
     </aside>
 
     <!-- Main calendar area -->
-    <main id="main-cal">
-      <div id="dow-header" role="row" aria-hidden="true">
-        <span>SUN</span><span>MON</span><span>TUE</span>
-        <span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
+    <main id="main-cal" class="flex-1 flex flex-col overflow-hidden">
+      <div id="dow-header" class="grid grid-cols-7 border-b border-[#dadce0] shrink-0"
+           role="row" aria-hidden="true">
+        <span class="pr-3 py-2 text-right text-[.6875rem] font-medium text-[#5f6368] uppercase tracking-[.8px]">SUN</span>
+        <span class="pr-3 py-2 text-right text-[.6875rem] font-medium text-[#5f6368] uppercase tracking-[.8px]">MON</span>
+        <span class="pr-3 py-2 text-right text-[.6875rem] font-medium text-[#5f6368] uppercase tracking-[.8px]">TUE</span>
+        <span class="pr-3 py-2 text-right text-[.6875rem] font-medium text-[#5f6368] uppercase tracking-[.8px]">WED</span>
+        <span class="pr-3 py-2 text-right text-[.6875rem] font-medium text-[#5f6368] uppercase tracking-[.8px]">THU</span>
+        <span class="pr-3 py-2 text-right text-[.6875rem] font-medium text-[#5f6368] uppercase tracking-[.8px]">FRI</span>
+        <span class="pr-3 py-2 text-right text-[.6875rem] font-medium text-[#5f6368] uppercase tracking-[.8px]">SAT</span>
       </div>
       <div id="cal-grid" role="grid" aria-label="Calendar"></div>
     </main>
 
   </div><!-- /#app-body -->
 
-  <!-- ── Modal overlay (unchanged) ── -->
+  <!-- ── Modal overlay ── -->
   <div id="modal-overlay" class="hidden" role="dialog"
        aria-modal="true" aria-labelledby="modal-title">
-    <div id="modal">
-      <header id="modal-header">
-        <h2 id="modal-title">Add Event</h2>
-        <button id="btn-modal-close" aria-label="Close modal">&times;</button>
+    <div id="modal" class="bg-white rounded-md w-full max-w-[480px] max-h-[90vh] overflow-y-auto p-6"
+         style="box-shadow:0 4px 24px rgba(0,0,0,.15)">
+      <header id="modal-header" class="flex justify-between items-center mb-5">
+        <h2 id="modal-title" class="text-[1.2rem] font-semibold">Add Event</h2>
+        <button id="btn-modal-close"
+                class="text-2xl leading-none text-[#5f6368] px-2 py-1 rounded-md hover:bg-[#f1f3f4]"
+                aria-label="Close modal">&times;</button>
       </header>
 
       <form id="event-form" novalidate>
 
-        <div class="form-group">
-          <label for="f-title">Title <span aria-hidden="true">*</span></label>
-          <input id="f-title" type="text" name="title"
+        <div class="flex flex-col mb-4">
+          <label class="text-[.85rem] font-medium mb-1" for="f-title">
+            Title <span class="text-[#d93025]" aria-hidden="true">*</span>
+          </label>
+          <input id="f-title" type="text" name="title" class="form-input"
                  placeholder="Event title" maxlength="80" required
                  aria-describedby="err-title">
-          <span class="error-msg" id="err-title" role="alert"></span>
+          <span class="text-xs text-[#d93025] mt-[3px] min-h-[1.1em]"
+                id="err-title" role="alert"></span>
         </div>
 
-        <div class="form-group">
-          <label for="f-date">Date <span aria-hidden="true">*</span></label>
-          <input id="f-date" type="date" name="date" required
+        <div class="flex flex-col mb-4">
+          <label class="text-[.85rem] font-medium mb-1" for="f-date">
+            Date <span class="text-[#d93025]" aria-hidden="true">*</span>
+          </label>
+          <input id="f-date" type="date" name="date" class="form-input" required
                  aria-describedby="err-date">
-          <span class="error-msg" id="err-date" role="alert"></span>
+          <span class="text-xs text-[#d93025] mt-[3px] min-h-[1.1em]"
+                id="err-date" role="alert"></span>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="f-start">Start Time <span aria-hidden="true">*</span></label>
-            <input id="f-start" type="time" name="startTime" required
+        <div class="grid grid-cols-2 max-[480px]:grid-cols-1 gap-3">
+          <div class="flex flex-col mb-4">
+            <label class="text-[.85rem] font-medium mb-1" for="f-start">
+              Start Time <span class="text-[#d93025]" aria-hidden="true">*</span>
+            </label>
+            <input id="f-start" type="time" name="startTime" class="form-input" required
                    aria-describedby="err-start">
-            <span class="error-msg" id="err-start" role="alert"></span>
+            <span class="text-xs text-[#d93025] mt-[3px] min-h-[1.1em]"
+                  id="err-start" role="alert"></span>
           </div>
-          <div class="form-group">
-            <label for="f-end">End Time <span aria-hidden="true">*</span></label>
-            <input id="f-end" type="time" name="endTime" required
+          <div class="flex flex-col mb-4">
+            <label class="text-[.85rem] font-medium mb-1" for="f-end">
+              End Time <span class="text-[#d93025]" aria-hidden="true">*</span>
+            </label>
+            <input id="f-end" type="time" name="endTime" class="form-input" required
                    aria-describedby="err-end">
-            <span class="error-msg" id="err-end" role="alert"></span>
+            <span class="text-xs text-[#d93025] mt-[3px] min-h-[1.1em]"
+                  id="err-end" role="alert"></span>
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="f-desc">Description</label>
-          <textarea id="f-desc" name="description"
+        <div class="flex flex-col mb-4">
+          <label class="text-[.85rem] font-medium mb-1" for="f-desc">Description</label>
+          <textarea id="f-desc" name="description" class="form-input"
                     rows="3" maxlength="500"
                     placeholder="Optional notes"></textarea>
         </div>
 
-        <div id="modal-actions">
-          <button type="submit" id="btn-save">Save</button>
+        <div id="modal-actions" class="flex gap-2 justify-end mt-2 flex-wrap">
+          <button type="submit" id="btn-save"
+                  class="bg-[#1a73e8] text-white border-none py-[9px] px-5 rounded-md font-semibold hover:bg-[#1557b0]">
+            Save
+          </button>
           <button type="button" id="btn-delete" class="hidden danger">Delete</button>
-          <button type="button" id="btn-cancel">Cancel</button>
+          <button type="button" id="btn-cancel"
+                  class="border border-[#dadce0] py-[9px] px-5 rounded-md text-[#202124] hover:bg-[#f1f3f4]">
+            Cancel
+          </button>
         </div>
 
       </form>
